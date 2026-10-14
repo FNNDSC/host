@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import io
+import time
 from pathlib import Path
 
 import pytest
 
-from hostlib import JobResult, ProgressEvent
+from hostlib import JobResult, JobSpec, ProgressEvent, job_run
 from hostlib.cli.commands import main
-from hostlib.cli.demo import batch_run, jobs_demo
+from hostlib.cli.demo import batch_run, jobs_demo, progress_spec
 from hostlib.sink import BarSink, NullSink, SinkBase
 
 
@@ -91,3 +92,29 @@ def test_main_demo_barMode_writesRecords(tmp_path: Path, capsys: pytest.CaptureF
     assert "\r[" in captured.err and captured.err.rstrip().endswith("running report")
     assert f"records in {tmp_path / 'd'}/" in captured.out
     assert (tmp_path / "d" / "scan-stdout").read_text() == "line 0\nline 1\nline 2\n"
+
+
+def test_progressSpec_streamsEachRedrawAsItHappens() -> None:
+    arrivals: list[tuple[float, str]] = []
+
+    class Clock(SinkBase):
+        def stderr_write(self, text: str) -> None:
+            arrivals.append((time.monotonic(), text))
+
+    spec: JobSpec = progress_spec(steps=10, step=0.05)
+    result: JobResult = job_run(spec, sink=Clock())
+    assert result.status is True and result.stdout == "processed 10 items\n"
+    joined: str = "".join(text for _, text in arrivals)
+    assert joined == result.stderr
+    assert joined.count("\r") == 10 and joined.endswith("\n")
+    assert "100%|" in joined and "| 10/10 [" in joined and "it/s]" in joined
+    assert len(arrivals) >= 8
+    assert arrivals[-1][0] - arrivals[0][0] >= 0.3
+
+
+def test_main_demo_progress(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["demo", "--progress", "--steps", "5", "--step", "0.01", "--no-log"]) == 0
+    captured = capsys.readouterr()
+    assert captured.err.count("\r") == 5 and "100%|" in captured.err
+    assert "record: status=True exit=0" in captured.out
+    assert "5 redraws" in captured.out and "record: stdout 'processed 5 items\\n'" in captured.out

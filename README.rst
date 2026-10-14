@@ -96,7 +96,7 @@ The caller that runs many jobs is the one that knows there is a batch, so it emi
 
     batch_run(jobs, BarSink())
 
-``hostlib demo`` runs the complete version: four small jobs, one drawing its own carriage-return progress bar through the console sink, one failing, per-job records written beside the bar. ``--stream`` shows the lines instead of the bar, ``--both`` shows both. Its source, ``hostlib/cli/demo.py``, is the worked example.
+``hostlib demo`` runs the complete version: four small jobs, one drawing its own carriage-return progress bar through the console sink, one failing, per-job records written beside the bar. ``--stream`` shows the lines instead of the bar, ``--both`` shows both. ``hostlib demo --progress`` runs one job that redraws a tqdm-style bar on its own stderr a hundred times, a tenth of a second apart, and shows it streaming through the console sink as it draws, then prints the record that captured every redraw. The source, ``hostlib/cli/demo.py``, is the worked example.
 
 Background jobs
 ---------------
