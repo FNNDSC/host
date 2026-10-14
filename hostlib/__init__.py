@@ -27,7 +27,7 @@ from hostlib.proc.run import job_run
 from hostlib.proc.start import JobHandle, job_start
 from hostlib.sink.protocol import JobSink, SinkBase
 
-__version__: str = "1.0.0"
+__version__: str = "1.1.0"
 
 __all__: list[str] = [
     "HostFacts",
