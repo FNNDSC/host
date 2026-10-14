@@ -60,7 +60,7 @@ Running and streaming
     # Watch a long job as it runs, and keep its record beside its results.
     result = job_run(spec, sink=TeeSink(ConsoleSink(), FileSink("/work/sub01/recon-all")))
 
-A sink is anything with six methods: ``began`` and ``ended`` around the run, and ``stdout_write``, ``stderr_write``, ``status_write`` and ``progress_write`` during it. ``SinkBase`` implements all six as no-ops, so a custom sink overrides only what it needs. The library ships four:
+A sink is anything with six methods: ``began`` and ``ended`` around the run, and ``stdout_write``, ``stderr_write``, ``status_write`` and ``progress_write`` during it. ``SinkBase`` implements all six as no-ops, so a custom sink overrides only what it needs. The library ships five:
 
 ``NullSink``
     The default. Output is captured into the record and nowhere else.
@@ -70,17 +70,20 @@ A sink is anything with six methods: ``began`` and ``ended`` around the run, and
     Writes ``<prefix>-cmd``, ``<prefix>-stdout``, ``<prefix>-stderr`` and ``<prefix>-returncode`` beside the job's results, live, so a crash still leaves a partial log.
 ``TeeSink(*sinks)``
     Fans out to several sinks at once.
+``BarSink()``
+    Draws a progress bar from a batch's status and progress events, and ignores the streams.
 
 Write your own to feed a web socket, a progress bar or a log aggregator; the record you get back is the same regardless of where the output also went.
 
 A batch, one sink
 -----------------
 
-The caller that runs many jobs is the one that knows there is a batch, so it emits the batch's progress through the same sink the jobs write into. A sink that draws a bar sees ``status_write`` and ``progress_write`` and ignores the streams; a console sink shows the streams; a tee shows both; the batch code is the same whichever is attached.
+The caller that runs many jobs is the one that knows there is a batch, so it emits the batch's progress through the same sink the jobs write into. ``BarSink`` listens to ``status_write`` and ``progress_write`` and draws one redrawn line; a console sink shows the streams; a tee shows both; the batch code is the same whichever is attached.
 
 .. code-block:: python
 
     from hostlib import JobSpec, ProgressEvent, job_run
+    from hostlib.sink import BarSink
 
     def batch_run(jobs: dict[str, JobSpec], sink) -> list:
         results = []
@@ -91,7 +94,9 @@ The caller that runs many jobs is the one that knows there is a batch, so it emi
             sink.progress_write(ProgressEvent("running", label=name, current=index, total=total))
         return results
 
-``examples/batch.py`` is the complete version: a ``BarSink`` of thirty lines that redraws one terminal line, a job that draws its own carriage-return progress bar through the console sink, a job that fails, and per-job log files beside the bar. Run it with ``--stream`` to see the lines instead of the bar, or ``--both``.
+    batch_run(jobs, BarSink())
+
+``hostlib demo`` runs the complete version: four small jobs, one drawing its own carriage-return progress bar through the console sink, one failing, per-job records written beside the bar. ``--stream`` shows the lines instead of the bar, ``--both`` shows both. Its source, ``hostlib/cli/demo.py``, is the worked example.
 
 Background jobs
 ---------------
@@ -138,7 +143,7 @@ It is not a shell: no pipes, redirection or globbing in ``argv``. A command that
 The command
 -----------
 
-``hostlib run -- <program> [args...]`` runs a program through the library with a console sink and prints the record as JSON; ``hostlib facts`` prints the host's facts. Both exist mainly to try the library from a terminal.
+``hostlib run -- <program> [args...]`` runs a program through the library, streams its output, and exits with its status; ``--json`` prints the record. ``hostlib facts`` prints the host's facts. ``hostlib demo`` runs the batch above. All three exist to try the library from a terminal.
 
 Install
 -------

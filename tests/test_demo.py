@@ -1,32 +1,19 @@
-"""The examples run, and show what they claim to show."""
+"""The demo: a batch through one sink, and the bar sink it draws with."""
 
 from __future__ import annotations
 
-import importlib.util
 import io
-import sys
 from pathlib import Path
-from types import ModuleType
 
 import pytest
 
 from hostlib import JobResult, ProgressEvent
-from hostlib.sink import SinkBase
-
-EXAMPLES: Path = Path(__file__).resolve().parent.parent / "examples"
-
-
-def example_load(name: str) -> ModuleType:
-    spec = importlib.util.spec_from_file_location(name, EXAMPLES / f"{name}.py")
-    assert spec is not None and spec.loader is not None
-    module: ModuleType = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
+from hostlib.cli.commands import main
+from hostlib.cli.demo import batch_run, jobs_demo
+from hostlib.sink import BarSink, NullSink, SinkBase
 
 
 def test_batch_oneSinkSeesProgressAndOutput() -> None:
-    batch = example_load("batch")
     events: list[str] = []
 
     class Record(SinkBase):
@@ -42,7 +29,7 @@ def test_batch_oneSinkSeesProgressAndOutput() -> None:
         def ended(self, result: JobResult) -> None:
             events.append(f"ended:{result.returncode}")
 
-    results = batch.batch_run(batch.jobs_demo(pause=0.01), Record())
+    results: list[JobResult] = batch_run(jobs_demo(pause=0.01), Record())
     assert [r.status for r in results] == [True, True, False, True]
     assert events[0] == "progress:started:0/4:"
     assert events[-1] == "progress:ended:4/4:ok"
@@ -57,36 +44,50 @@ def test_batch_oneSinkSeesProgressAndOutput() -> None:
     assert events.index("ended:0") < events.index("progress:running:1/4:ok")
 
 
-def test_batch_barDrawsInPlace() -> None:
-    batch = example_load("batch")
+def test_batch_logDir_oneRecordPerJob(tmp_path: Path) -> None:
+    results: list[JobResult] = batch_run(jobs_demo(pause=0.01), NullSink(), logDir=tmp_path)
+    assert len(results) == 4
+    assert (tmp_path / "convert-returncode").read_text() == "2\n"
+    assert (tmp_path / "convert-stderr").read_text() == "bad input\n"
+    assert (tmp_path / "report-stdout").read_text() == "done\n"
+    assert "downloading 100%" in (tmp_path / "download-stdout").read_text()
+
+
+def test_barSink_drawsInPlace_countsFailures_endsLine() -> None:
     err: io.StringIO = io.StringIO()
-    bar = batch.BarSink(err=err, width=10)
+    bar: BarSink = BarSink(err=err, width=10)
     bar.progress_write(ProgressEvent("started", current=0, total=4))
-    bar.status_write("running x")
+    bar.status_write("running x\n")
     bar.progress_write(ProgressEvent("running", current=2, total=4, status="error"))
     bar.progress_write(ProgressEvent("ended", current=4, total=4, status="ok"))
     drawn: str = err.getvalue()
     assert drawn.count("\r") == 4 and drawn.endswith("\n")
+    assert "[..........] 0/4  " in drawn
     assert "[#####.....] 2/4  1 failed  running x" in drawn
-    assert "[##########] 4/4  1 failed" in drawn
+    assert bar.render() == "[##########] 4/4  1 failed  running x"
 
 
-def test_batch_main_streamMode(capsys: pytest.CaptureFixture[str]) -> None:
-    batch = example_load("batch")
-    code: int = batch.main(["--stream", "--pause", "0.01"])
-    assert code == 1
+def test_barSink_ignoresStreams() -> None:
+    err: io.StringIO = io.StringIO()
+    bar: BarSink = BarSink(err=err)
+    bar.began(["x"])
+    bar.stdout_write("noise")
+    bar.stderr_write("noise")
+    assert err.getvalue() == ""
+
+
+def test_main_demo_streamMode(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["demo", "--stream", "--no-log", "--pause", "0.01"]) == 1
     captured = capsys.readouterr()
     assert "line 2" in captured.out and "done" in captured.out
     assert captured.out.count("FAIL") == 1 and captured.out.count("ok  ") == 3
+    assert "records in" not in captured.out
     assert "bad input" in captured.err
 
 
-def test_batch_logDir_oneRecordPerJob(tmp_path: Path) -> None:
-    batch = example_load("batch")
-    from hostlib.sink import NullSink
-
-    results = batch.batch_run(batch.jobs_demo(pause=0.01), NullSink(), logDir=tmp_path)
-    assert len(results) == 4
-    assert (tmp_path / "convert-returncode").read_text() == "2\n"
-    assert (tmp_path / "report-stdout").read_text() == "done\n"
-    assert "downloading 100%" in (tmp_path / "download-stdout").read_text()
+def test_main_demo_barMode_writesRecords(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["demo", "--log", str(tmp_path / "d"), "--pause", "0.01"]) == 1
+    captured = capsys.readouterr()
+    assert "\r[" in captured.err and captured.err.rstrip().endswith("running report")
+    assert f"records in {tmp_path / 'd'}/" in captured.out
+    assert (tmp_path / "d" / "scan-stdout").read_text() == "line 0\nline 1\nline 2\n"

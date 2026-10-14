@@ -6,4 +6,4 @@ dist/
 .venv/
 .ruff_cache/
 .pytest_cache/
-batch-logs/
+hostlib-demo/

@@ -1,78 +1,40 @@
-"""A batch of jobs through one sink: batch progress as a bar, job output as it streams.
+"""``hostlib demo``: a batch of jobs through one sink, to see the library work.
 
 The caller owns the batch, so the caller emits the progress: a status line before each
 job and a progress event after it. The jobs' own output flows through the same sink as
 it arrives. Which of that reaches the terminal, which reaches files, is decided once,
-where the sink is built, and the batch code never knows.
+where the sink is built, and the batch loop never knows.
 
-    python examples/batch.py            # a bar on stderr, job output to ./batch-logs
-    python examples/batch.py --stream   # no bar; every line of every job as it happens
-    python examples/batch.py --both     # the bar, and the lines scrolling under it
+    hostlib demo            # a bar on stderr, each job's record under ./hostlib-demo
+    hostlib demo --stream   # no bar; every line of every job as it happens
+    hostlib demo --both     # the bar, and the lines scrolling under it
 
 Key components:
-    - BarSink: draws progress_write as a bar and status_write as its label; ignores streams
     - batch_run: the loop; the only place that knows there is a batch
     - jobs_demo: four small jobs, one of which draws its own progress with carriage returns
+    - demo_command: the subcommand
+
+Dependencies:
+    - hostlib.proc, hostlib.sink, hostlib.models
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Sequence
 from pathlib import Path
-from typing import TextIO
 
-from hostlib import JobResult, JobSpec, ProgressEvent, job_run
-from hostlib.sink import ConsoleSink, FileSink, JobSink, NullSink, SinkBase, TeeSink
+from hostlib.models.proc import JobResult, JobSpec
+from hostlib.models.sink import ProgressEvent
+from hostlib.proc.run import job_run
+from hostlib.sink.bar import BarSink
+from hostlib.sink.console import ConsoleSink
+from hostlib.sink.file import FileSink
+from hostlib.sink.null import NullSink
+from hostlib.sink.protocol import JobSink
+from hostlib.sink.tee import TeeSink
 
-BAR_WIDTH: int = 30
-
-
-class BarSink(SinkBase):
-    """A progress bar on one terminal line, redrawn on every status or progress event.
-
-    Attributes:
-        err: where the bar is drawn.
-        width: the bar's width in characters.
-        label: the current status line, drawn after the bar.
-        current, total: the last progress seen.
-    """
-
-    def __init__(self, err: TextIO | None = None, width: int = BAR_WIDTH) -> None:
-        self.err: TextIO = err if err is not None else sys.stderr
-        self.width: int = width
-        self.label: str = ""
-        self.current: int = 0
-        self.total: int = 0
-        self.failed: int = 0
-
-    def status_write(self, text: str) -> None:
-        """A new label; redraw."""
-        self.label = text
-        self.draw()
-
-    def progress_write(self, event: ProgressEvent) -> None:
-        """Advance the bar; a final event ends the line."""
-        if event.current is not None:
-            self.current = event.current
-        if event.total is not None:
-            self.total = event.total
-        if event.status == "error":
-            self.failed += 1
-        self.draw()
-        if event.phase == "ended":
-            self.err.write("\n")
-            self.err.flush()
-
-    def draw(self) -> None:
-        """Redraw the bar in place."""
-        filled: int = round(self.width * self.current / self.total) if self.total else 0
-        bar: str = "#" * filled + "." * (self.width - filled)
-        failed: str = f"  {self.failed} failed" if self.failed else ""
-        line: str = f"[{bar}] {self.current}/{self.total}{failed}  {self.label}"
-        self.err.write("\r" + line.ljust(self.width + 60))
-        self.err.flush()
+DEFAULT_LOG_DIR: Path = Path("hostlib-demo")
 
 
 def batch_run(jobs: dict[str, JobSpec], sink: JobSink, logDir: Path | None = None) -> list[JobResult]:
@@ -151,25 +113,26 @@ def sink_build(stream: bool, bar: bool) -> JobSink:
     return sinks[0] if len(sinks) == 1 else TeeSink(*sinks)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
-    parser.add_argument("--stream", action="store_true", help="stream every job's output; no bar")
-    parser.add_argument("--both", action="store_true", help="the bar and the streamed output")
-    parser.add_argument("--log", type=Path, default=None, help="directory for per-job log files")
-    parser.add_argument("--pause", type=float, default=0.3, help="seconds between a job's lines")
-    args: argparse.Namespace = parser.parse_args(argv)
+def demoParser_add(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    """Add the ``demo`` subcommand to the command's parser."""
+    demo: argparse.ArgumentParser = commands.add_parser("demo", help="run a small batch through one sink")
+    demo.add_argument("--stream", action="store_true", help="stream every job's output; no bar")
+    demo.add_argument("--both", action="store_true", help="the bar and the streamed output")
+    demo.add_argument("--log", type=Path, default=None, help="directory for per-job records")
+    demo.add_argument("--no-log", action="store_true", help="write no per-job records")
+    demo.add_argument("--pause", type=float, default=0.3, help="seconds between a job's lines")
+
+
+def demo_command(args: argparse.Namespace) -> int:
+    """``hostlib demo``."""
     bar: bool = args.both or not args.stream
     stream: bool = args.stream or args.both
-    logDir: Path | None = args.log if args.log is not None else (Path("batch-logs") if not stream else None)
+    logDir: Path | None = None if args.no_log else (args.log if args.log is not None else DEFAULT_LOG_DIR)
     jobs: dict[str, JobSpec] = jobs_demo(args.pause)
     results: list[JobResult] = batch_run(jobs, sink_build(stream, bar), logDir)
     for name, result in zip(jobs, results, strict=True):
         mark: str = "ok  " if result.status else "FAIL"
         print(f"{mark} {name:10} exit={result.returncode} {result.duration:.2f}s {'; '.join(result.errors)}")
     if logDir is not None:
-        print(f"logs in {logDir}/")
+        print(f"records in {logDir}/")
     return 0 if all(result.status for result in results) else 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())

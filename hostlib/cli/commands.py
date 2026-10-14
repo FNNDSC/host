@@ -28,6 +28,7 @@ import sys
 from collections.abc import Sequence
 
 from hostlib import __version__
+from hostlib.cli.demo import demo_command, demoParser_add
 from hostlib.cli.manual import Manual, manual_print
 from hostlib.facts.facts import facts
 from hostlib.models.facts import HostFacts
@@ -87,6 +88,8 @@ SYNOPSIS_CLI: str = """
 
         hostlib facts [--json]
 
+        hostlib demo [--stream | --both] [--log <dir> | --no-log] [--pause <seconds>]
+
         hostlib [--man] [--synopsis] [--version]"""
 
 DESCRIPTION: str = """
@@ -97,7 +100,9 @@ DESCRIPTION: str = """
         program's own exit status. With --log the record is also written as
         four files beside the results; with --json the record is printed as
         JSON when the program ends. ``hostlib facts`` prints what the library
-        knows about the host it runs on.
+        knows about the host it runs on. ``hostlib demo`` runs a small batch of
+        four jobs through one sink, so the bar, the streaming and the per-job
+        records can be seen before they are written into a tool.
 
         Everything after ``--`` is the program and its arguments, exactly as
         given: no shell is involved, so a quoted argument with a space stays
@@ -137,6 +142,18 @@ ARGS: str = """
 
         --man, --synopsis, --version
         The full manual, its first page, the version.
+
+        demo --stream | --both
+        By default the demo draws a progress bar from the batch's status and
+        progress events and keeps each job's output in files. --stream shows
+        every line of every job as it arrives instead; --both shows the bar
+        with the lines scrolling under it.
+
+        demo --log <dir> | --no-log
+        Where the per-job records go (default ./hostlib-demo), or nowhere.
+
+        demo --pause <seconds>
+        How long each demo job spends between its lines.
 """
 
 RECORD_HELP: str = """
@@ -162,12 +179,29 @@ RECORD_HELP: str = """
         status is never inferred from the output text.
 """
 
+SINKS_HELP: str = """
+    SINKS
+
+        While a program runs, each chunk of its output goes to a sink. The
+        library ships five: NullSink keeps nothing but the record; ConsoleSink
+        streams to the terminal; FileSink writes <prefix>-cmd, -stdout,
+        -stderr and -returncode live; TeeSink fans out to several; BarSink
+        draws a progress bar from the status and progress events a caller
+        running many jobs emits between them. A sink is any object with six
+        methods: began, stdout_write, stderr_write, status_write,
+        progress_write, ended; SinkBase implements them all as no-ops.
+
+        ``hostlib demo`` is the worked example: one batch loop, the same code
+        whichever sink is attached. Its source is hostlib/cli/demo.py.
+"""
+
 EXIT_HELP: str = """
     EXIT STATUS
 
         ``hostlib run`` exits with the program's exit status; 127 when the
         program could not be started; 124 when it timed out; 2 on a usage
-        error. ``hostlib facts`` exits 0.
+        error. ``hostlib facts`` exits 0; ``hostlib demo`` exits 1, because
+        one of its jobs is meant to fail.
 """
 
 EXAMPLES: str = """
@@ -194,6 +228,10 @@ EXAMPLES: str = """
     What this host is:
 
         hostlib facts --json
+
+    The batch demo, with the lines scrolling under the bar:
+
+        hostlib demo --both
 
 """
 
@@ -225,7 +263,7 @@ def synopsis(shortOnly: bool = False) -> str:
     )
     if shortOnly:
         return shortSynopsis
-    return shortSynopsis + DESCRIPTION + ARGS + RECORD_HELP + EXIT_HELP + EXAMPLES
+    return shortSynopsis + DESCRIPTION + ARGS + RECORD_HELP + SINKS_HELP + EXIT_HELP + EXAMPLES
 
 
 def manual_build() -> Manual:
@@ -264,6 +302,7 @@ def parser_build() -> argparse.ArgumentParser:
 
     factsParser: argparse.ArgumentParser = commands.add_parser("facts", help="print the host's facts")
     factsParser.add_argument("--json", action="store_true", help="as JSON")
+    demoParser_add(commands)
     return parser
 
 
@@ -354,5 +393,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return run_command(args, parser)
     if args.command == "facts":
         return facts_command(args)
+    if args.command == "demo":
+        return demo_command(args)
     parser.print_help()
     return EXIT_USAGE
