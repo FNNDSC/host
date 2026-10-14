@@ -89,6 +89,7 @@ SYNOPSIS_CLI: str = """
         hostlib facts [--json]
 
         hostlib demo [--stream | --both] [--log <dir> | --no-log] [--pause <seconds>]
+        hostlib demo --progress [--steps <n>] [--step <seconds>]
 
         hostlib [--man] [--synopsis] [--version]"""
 
@@ -154,6 +155,11 @@ ARGS: str = """
 
         demo --pause <seconds>
         How long each demo job spends between its lines.
+
+        demo --progress [--steps <n>] [--step <seconds>]
+        One job that loops <n> times (100), <seconds> each (0.1), redrawing a
+        tqdm-style bar on its own stderr with carriage returns. The console
+        sink shows it as it draws; the record afterwards holds every redraw.
 """
 
 RECORD_HELP: str = """
@@ -232,6 +238,10 @@ EXAMPLES: str = """
     The batch demo, with the lines scrolling under the bar:
 
         hostlib demo --both
+
+    A program's own progress bar, streamed as it draws, then the record:
+
+        hostlib demo --progress --steps 50 --step 0.05
 
 """
 

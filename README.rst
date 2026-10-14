@@ -75,6 +75,8 @@ A sink is anything with six methods: ``began`` and ``ended`` around the run, and
 
 Write your own to feed a web socket, a progress bar or a log aggregator; the record you get back is the same regardless of where the output also went.
 
+A program that draws a progress bar writes the same line many times behind carriage returns. The record keeps every frame, which is the truth; ``terminal_render(result.stderr)`` is the view a terminal would have shown, each line reduced to its last frame. ``FileSink(prefix, rendered=True)`` writes the stream files that way when the job ends, raw while it runs.
+
 A batch, one sink
 -----------------
 
@@ -96,7 +98,7 @@ The caller that runs many jobs is the one that knows there is a batch, so it emi
 
     batch_run(jobs, BarSink())
 
-``hostlib demo`` runs the complete version: four small jobs, one drawing its own carriage-return progress bar through the console sink, one failing, per-job records written beside the bar. ``--stream`` shows the lines instead of the bar, ``--both`` shows both. Its source, ``hostlib/cli/demo.py``, is the worked example.
+``hostlib demo`` runs the complete version: four small jobs, one drawing its own carriage-return progress bar through the console sink, one failing, per-job records written beside the bar. ``--stream`` shows the lines instead of the bar, ``--both`` shows both. ``hostlib demo --progress`` runs one job that redraws a tqdm-style bar on its own stderr a hundred times, a tenth of a second apart, and shows it streaming through the console sink as it draws, then prints the record that captured every redraw. The source, ``hostlib/cli/demo.py``, is the worked example.
 
 Background jobs
 ---------------
