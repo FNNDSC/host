@@ -118,3 +118,4 @@ def test_main_demo_progress(capsys: pytest.CaptureFixture[str]) -> None:
     assert captured.err.count("\r") == 5 and "100%|" in captured.err
     assert "record: status=True exit=0" in captured.out
     assert "5 redraws" in captured.out and "record: stdout 'processed 5 items\\n'" in captured.out
+    assert "terminal_render(stderr): '100%|" in captured.out

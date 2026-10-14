@@ -75,6 +75,8 @@ A sink is anything with six methods: ``began`` and ``ended`` around the run, and
 
 Write your own to feed a web socket, a progress bar or a log aggregator; the record you get back is the same regardless of where the output also went.
 
+A program that draws a progress bar writes the same line many times behind carriage returns. The record keeps every frame, which is the truth; ``terminal_render(result.stderr)`` is the view a terminal would have shown, each line reduced to its last frame. ``FileSink(prefix, rendered=True)`` writes the stream files that way when the job ends, raw while it runs.
+
 A batch, one sink
 -----------------
 

@@ -28,6 +28,7 @@ from pathlib import Path
 
 from hostlib.models.proc import JobResult, JobSpec
 from hostlib.models.sink import ProgressEvent
+from hostlib.proc.render import terminal_render
 from hostlib.proc.run import job_run
 from hostlib.sink.bar import BarSink
 from hostlib.sink.console import ConsoleSink
@@ -143,13 +144,13 @@ def progress_run(steps: int, step: float, logDir: Path | None) -> int:
     """``hostlib demo --progress``: one job, its own bar streamed to the console as it draws."""
     sink: JobSink = ConsoleSink()
     if logDir is not None:
-        sink = TeeSink(sink, FileSink(logDir / "progress"))
+        sink = TeeSink(sink, FileSink(logDir / "progress", rendered=True))
     result: JobResult = job_run(progress_spec(steps, step), sink=sink)
     redraws: int = result.stderr.count("\r")
     print(f"record: status={result.status} exit={result.returncode} {result.duration:.2f}s")
-    lastDraw: str = result.stderr.rstrip().rsplit("\r", 1)[-1]
-    print(f"record: stderr {len(result.stderr)} chars, {redraws} redraws; last: {lastDraw}")
+    print(f"record: stderr {len(result.stderr)} chars, {redraws} redraws, raw")
     print(f"record: stdout {result.stdout!r}")
+    print(f"terminal_render(stderr): {terminal_render(result.stderr)!r}")
     if logDir is not None:
         print(f"records in {logDir}/")
     return 0 if result.status else 1
