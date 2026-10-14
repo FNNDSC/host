@@ -60,14 +60,16 @@ Running and streaming
     # Watch a long job as it runs, and keep its record beside its results.
     result = job_run(spec, sink=TeeSink(ConsoleSink(), FileSink("/work/sub01/recon-all")))
 
-A sink is anything with six methods: ``began`` and ``ended`` around the run, and ``stdout_write``, ``stderr_write``, ``status_write`` and ``progress_write`` during it. ``SinkBase`` implements all six as no-ops, so a custom sink overrides only what it needs. The library ships five:
+A sink is anything with six methods: ``began`` and ``ended`` around the run, and ``stdout_write``, ``stderr_write``, ``status_write`` and ``progress_write`` during it. ``SinkBase`` implements all six as no-ops, so a custom sink overrides only what it needs. The library ships six:
 
 ``NullSink``
     The default. Output is captured into the record and nowhere else.
 ``ConsoleSink``
     Streams stdout and stderr to the terminal as they arrive, keeping the two apart.
+``JsonSink(path)``
+    Appends the whole record to ``path`` as one line of JSON when the job ends. One file per batch or per directory, one line per job: the form ``pflog read`` prints as a table and a log collector indexes by field.
 ``FileSink(prefix)``
-    Writes ``<prefix>-cmd``, ``<prefix>-stdout``, ``<prefix>-stderr`` and ``<prefix>-returncode`` beside the job's results, live, so a crash still leaves a partial log.
+    Writes ``<prefix>-cmd``, ``<prefix>-stdout``, ``<prefix>-stderr`` and ``<prefix>-returncode`` beside the job's results, live, so a crash still leaves a partial log. For the case where someone will open the output in an editor; the JSON line holds the same four things.
 ``TeeSink(*sinks)``
     Fans out to several sinks at once.
 ``BarSink()``

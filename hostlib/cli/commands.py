@@ -36,6 +36,7 @@ from hostlib.models.proc import JobResult, JobSpec
 from hostlib.proc.run import job_run
 from hostlib.sink.console import ConsoleSink
 from hostlib.sink.file import FileSink
+from hostlib.sink.jsonl import JsonSink
 from hostlib.sink.null import NullSink
 from hostlib.sink.protocol import JobSink
 from hostlib.sink.tee import TeeSink
@@ -83,7 +84,7 @@ BANNER_TEXT: str = """
 SYNOPSIS_CLI: str = """
         hostlib run                                                             \\
             [--cwd <dir>] [--timeout <seconds>] [--env <NAME=VALUE> ...]        \\
-            [--stdin <text>] [--log <prefix>] [--quiet] [--json]                 \\
+            [--stdin <text>] [--log <prefix>] [--jsonl <file>] [--quiet] [--json]  \\
             -- <program> [<arg> ...]
 
         hostlib facts [--json]
@@ -132,6 +133,11 @@ ARGS: str = """
         --log <prefix>
         Write the record live as <prefix>-cmd, <prefix>-stdout,
         <prefix>-stderr and <prefix>-returncode. The directory is created.
+
+        --jsonl <file>
+        Append the record to <file> as one line of JSON when the program
+        ends. The directory is created. A file of such lines is what
+        ``pflog read`` prints and what a log collector indexes.
 
         --quiet
         Do not stream the program's output to the console. The record still
@@ -189,9 +195,12 @@ SINKS_HELP: str = """
     SINKS
 
         While a program runs, each chunk of its output goes to a sink. The
-        library ships five: NullSink keeps nothing but the record; ConsoleSink
-        streams to the terminal; FileSink writes <prefix>-cmd, -stdout,
-        -stderr and -returncode live; TeeSink fans out to several; BarSink
+        library ships six: NullSink keeps nothing but the record; ConsoleSink
+        streams to the terminal; JsonSink appends the record as one line of
+        JSON to a file when the job ends, the form a reader or a collector
+        parses and ``pflog read`` prints; FileSink writes <prefix>-cmd,
+        -stdout, -stderr and -returncode live, for the case where someone
+        will open the output in an editor; TeeSink fans out to several; BarSink
         draws a progress bar from the status and progress events a caller
         running many jobs emits between them. A sink is any object with six
         methods: began, stdout_write, stderr_write, status_write,
@@ -306,6 +315,9 @@ def parser_build() -> argparse.ArgumentParser:
     run.add_argument("--env", action="append", default=[], metavar="NAME=VALUE", help="set a variable")
     run.add_argument("--stdin", default=None, help="text written to the program's standard input")
     run.add_argument("--log", default=None, metavar="PREFIX", help="write the record live as four files")
+    run.add_argument(
+        "--jsonl", default=None, metavar="FILE", help="append the record to FILE as one line of JSON"
+    )
     run.add_argument("--quiet", action="store_true", help="do not stream output to the console")
     run.add_argument("--json", action="store_true", help="print the record as JSON when the program ends")
     run.add_argument("argv", nargs=argparse.REMAINDER, help="-- program and its arguments")
@@ -338,6 +350,8 @@ def sink_build(args: argparse.Namespace) -> JobSink:
         sinks.append(ConsoleSink())
     if args.log:
         sinks.append(FileSink(args.log))
+    if args.jsonl:
+        sinks.append(JsonSink(args.jsonl))
     if not sinks:
         return NullSink()
     if len(sinks) == 1:
