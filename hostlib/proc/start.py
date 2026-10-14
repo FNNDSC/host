@@ -140,10 +140,11 @@ class JobHandle:
             grace: seconds to wait between the two signals.
 
         Returns:
-            The record, marked as timed out.
+            The record, marked as timed out; unmarked if the program had already
+            exited on its own.
         """
-        self.timedOut = True
         if self.process.poll() is None:
+            self.timedOut = True
             self.process.terminate()
             try:
                 self.process.wait(timeout=grace)

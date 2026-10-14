@@ -70,6 +70,13 @@ def test_start_terminate_killsAfterGrace() -> None:
     assert result.returncode == -9 and result.timedOut is True
 
 
+def test_start_terminate_afterExitIsNotTimedOut() -> None:
+    handle: JobHandle = job_start(python_spec("print('quick')"))
+    handle.process.wait()
+    result: JobResult = handle.terminate()
+    assert result.timedOut is False and result.status is True and result.stdout == "quick\n"
+
+
 def test_start_fileSinkWritesWhileRunning(tmp_path: Path) -> None:
     sink: FileSink = FileSink(tmp_path / "bg")
     handle: JobHandle = job_start(
