@@ -184,3 +184,11 @@ def test_synopsis_colourize_padsEveryLineToWidth() -> None:
         assert line.startswith(BG_PAGE) and line.endswith(NO_COLOUR)
         assert len(escape.sub("", line)) == 120, line
     assert BG_PAGE + FG_HEADING + "    EXAMPLES" in page
+
+
+def test_main_run_jsonlAppendsRecord(tmp_path: Path) -> None:
+    path: Path = tmp_path / "records" / "jobs.jsonl"
+    for _ in range(2):
+        assert main(["run", "--quiet", "--jsonl", str(path), "--", PYTHON, "-c", "print('hi')"]) == 0
+    lines: list[str] = path.read_text().splitlines()
+    assert len(lines) == 2 and json.loads(lines[1])["stdout"] == "hi\n"

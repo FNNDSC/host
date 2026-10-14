@@ -3,10 +3,21 @@
 from __future__ import annotations
 
 import io
+import json
 from pathlib import Path
 
 from hostlib.models import HostFacts, JobResult, ProgressEvent
-from hostlib.sink import LOG_SUFFIXES, ConsoleSink, FileSink, JobSink, NullSink, SinkBase, TeeSink
+from hostlib.sink import (
+    JOBS_FILE,
+    LOG_SUFFIXES,
+    ConsoleSink,
+    FileSink,
+    JobSink,
+    JsonSink,
+    NullSink,
+    SinkBase,
+    TeeSink,
+)
 
 
 def result_make(returncode: int = 0) -> JobResult:
@@ -117,3 +128,20 @@ def test_teeSink_forwardsEverything_inOrder() -> None:
         "a.ended:2",
         "b.ended:2",
     ]
+
+
+def test_jsonSink_appendsOneLinePerJob_andCreatesDirectory(tmp_path: Path) -> None:
+    path: Path = tmp_path / "out" / JOBS_FILE
+    sink: JsonSink = JsonSink(path)
+    assert isinstance(sink, JobSink)
+    sink.began(["x"])
+    sink.stdout_write("ignored while running")
+    assert not path.exists()
+    sink.ended(result_make(0))
+    sink.ended(result_make(3))
+    lines: list[str] = path.read_text().splitlines()
+    assert len(lines) == 2
+    first = json.loads(lines[0])
+    assert first["status"] is True and first["argv"] == ["x"] and first["host"]["hostname"] == "box"
+    assert json.loads(lines[1])["returncode"] == 3
+    assert list(first) == sorted(first)
