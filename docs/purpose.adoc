@@ -1,0 +1,32 @@
+= hostlib: purpose
+:toc:
+
+== Abstract
+
+hostlib runs a program from Python, streams its output while it runs, and returns a record of what happened whose truth does not depend on reading the output. It exists because running another program is something almost every tool does and almost every tool does badly, in forty lines of `subprocess` code that each project writes again, with the same deadlock, the same dropped last line, the same exit status lost behind a parsed string. hostlib is those forty lines written once, with the result shaped as an envelope: ground truth first, text as data inside it.
+
+== The problem
+
+A tool that converts images, reconstructs a cortical surface, or copies a tree into a data service does its real work by running another program. Python's `subprocess` module makes that possible and makes it correct, but it makes it correct at a low level: the caller opens pipes, reads them, decodes bytes, waits, and interprets the exit status, and the module offers no opinion about how the pieces fit together. Each project therefore assembles them itself, and the assemblies converge on the same mistakes.
+
+The command arrives as a string and is split on whitespace, so a file name with a space becomes two arguments and the program runs on the wrong input, or on an input that does not exist. Standard output is read line by line to show progress while standard error is read only after the process exits, so a program that writes a few kilobytes of warnings fills its stderr pipe, blocks, and waits forever for a reader that is itself waiting on stdout. The read loop checks whether the process has exited between reads and drops the line that arrived just before it did. Bytes are decoded a line at a time, so a multi-byte character that straddles two reads becomes two replacement characters. The result is a dictionary whose keys were chosen that afternoon, and the caller learns whether the run worked by splitting its stdout and indexing the third word. A job meant to run in the background is written into a shell script with an ampersand appended, started, and never waited for, so nobody learns whether it finished and its pipes are never read. These are not hypothetical; each was found in production code that had been running for years, because the failures are intermittent and the symptoms land elsewhere.
+
+What was missing was not knowledge of how to do it right, which has been in the `subprocess` documentation for twenty years, but a place where it was done right once and could be imported.
+
+== What hostlib is
+
+hostlib's unit is the job: a `JobSpec` saying what to run, where, with what environment and input, for how long at most; and a `JobResult` saying what happened. Between them sits one of two functions. `job_run` runs the program to completion and returns the record. `job_start` returns a `JobHandle` at once and lets the caller poll, wait or terminate, obtaining the same record when the program ends.
+
+The record is an envelope in the sense the mise framework gives the word: a complete, self-describing account of one execution in which the machine-readable truth, a boolean `status` and an integer `returncode`, is carried separately from the human-readable text, both output streams in full. A caller that wants to know whether something worked reads the status and never parses the text; a caller that wants to show what happened has the text, complete, with the last line and every multi-byte character intact. The record also carries the argument list exactly as executed, the reasons for a failure in words, the facts of the host it ran on, and when it started, ended and how long it took. It is a dataclass, so it becomes JSON and comes back from JSON, which makes it the shape a service hands a client or a batch runner writes beside each job's results.
+
+While the program runs, its output goes to a sink. A sink is a small protocol, six methods, and the library ships four implementations: nothing, the console, four files beside the results written live, and a tee that fans out to several. The same run therefore serves a developer watching a terminal, a batch leaving a log trail, and a web service feeding a socket, with no change to the record that comes back. The streaming is what the old code tried to do and could not: both pipes are read concurrently from the moment the process starts, each on its own thread, decoded incrementally, so a background job can never stall on a full pipe and a foreground one shows a two-hour reconstruction as it happens.
+
+Commands that arrive as text are split once, with shell quoting rules, before anything is substituted into them, and the result is run without a shell. hostlib does not do the substitution; it provides the split and leaves the templating to whatever the caller already uses. The order is the point: because values enter arguments that already exist, a value containing a space, a quote or a semicolon can change what an argument says but never how many arguments there are or which program runs.
+
+== What hostlib is not
+
+hostlib is not a shell. There are no pipes, redirections or globs in an argument list, and a command that needs them is written as an explicit invocation of `sh -c`, so that the shell's involvement is visible in the record rather than implied by the library. It is not a scheduler, a queue, a retry loop or a workflow engine; it runs one program and says what happened, and the systems that need more build on that. It is not a replacement for `subprocess`, which it uses and does not hide; a caller who needs something hostlib does not offer can reach the `Popen` object through the handle. And it is not large. It depends on the standard library alone, and its scope is bounded by the question it answers: what does a program stand on to run other programs and tell the truth about them?
+
+== Who uses it
+
+hostlib is the engine under pfdo_run, which runs a command in every directory of a tree, and so under pl-shexec and pl-freesurfer, the ChRIS plugins that let a user run an arbitrary command, or FreeSurfer, across their data. It replaces the job runner that pfdcm, pfchrs, pfdcm's listener, pl-dylld and a dozen other FNNDSC services and plugins each carried as their own copy. Beyond that family it is for any Python program that runs another program and wants to know, rather than guess, what happened.
