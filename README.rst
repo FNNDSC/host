@@ -1,13 +1,13 @@
-host
-====
+hostlib
+=======
 
 **Run a program from Python, see its output as it happens, and get back a record you can trust.**
 
-``host`` is a small, dependency-free library for the one thing almost every tool eventually does and almost nobody does well: run another program. It turns the question "what happened when I ran that?" into a single typed answer, streams the program's output wherever you point it while the program is still running, and gives background jobs a handle instead of a loose process.
+``hostlib`` is a small, dependency-free library for the one thing almost every tool eventually does and almost nobody does well: run another program. It turns the question "what happened when I ran that?" into a single typed answer, streams the program's output wherever you point it while the program is still running, and gives background jobs a handle instead of a loose process.
 
 .. code-block:: python
 
-    from host import JobSpec, job_run
+    from hostlib import JobSpec, job_run
 
     result = job_run(JobSpec(argv=["mri_convert", "in.dcm", "out.nii.gz"]))
 
@@ -25,7 +25,7 @@ Python's ``subprocess`` is correct and complete. It is also low-level, and every
 
 Those forty lines are where the bugs live. A file name with a space becomes two arguments. A chatty program fills its stderr pipe and both processes wait on each other forever. Output appears only after a two-hour job finishes, or is echoed live but dropped from the record. The exit code is lost because the caller only looked at stdout. A background job is started with ``&`` inside a generated shell script and nobody ever learns whether it finished.
 
-``host`` is those forty lines written once, correctly, with a result shaped so that the caller never has to parse text to learn what happened.
+``hostlib`` is those forty lines written once, correctly, with a result shaped so that the caller never has to parse text to learn what happened.
 
 The record
 ----------
@@ -39,7 +39,7 @@ Every run returns a ``JobResult``. It is an *envelope*: a complete, self-describ
 ``stdout``          The complete standard output, decoded, last line included.
 ``stderr``          The complete standard error, read concurrently with stdout so neither can block the other.
 ``errors``          Why a failed job failed, in words: ``"cannot run mri_convert: No such file or directory"``, ``"exit status 1"``, ``"timed out after 30s"``.
-``host``            Facts about where it ran: hostname, user, pid, platform, working directory.
+``hostlib``            Facts about where it ran: hostname, user, pid, platform, working directory.
 ``startedAt``       When it started, when it ended, and ``duration`` in seconds.
 ==================  ======================================================================
 
@@ -52,8 +52,8 @@ Running and streaming
 
 .. code-block:: python
 
-    from host import JobSpec, job_run
-    from host.sink import ConsoleSink, FileSink, TeeSink
+    from hostlib import JobSpec, job_run
+    from hostlib.sink import ConsoleSink, FileSink, TeeSink
 
     spec = JobSpec(argv=["recon-all", "-s", "sub01", "-all"], cwd="/work")
 
@@ -80,8 +80,8 @@ Background jobs
 
 .. code-block:: python
 
-    from host import JobSpec, job_start
-    from host.sink import FileSink
+    from hostlib import JobSpec, job_start
+    from hostlib.sink import FileSink
 
     handle = job_start(JobSpec(argv=["long_pipeline.sh"]), sink=FileSink("/work/run42"))
 
@@ -95,53 +95,53 @@ The handle's output is read on background threads from the moment it starts, so 
 Facts
 -----
 
-``host.facts()`` returns a ``HostFacts`` dataclass: hostname, user, pid, platform, working directory and the current time. Every ``JobResult`` carries one. It is also useful on its own, wherever a program labels its output with where it came from.
+``hostlib.facts()`` returns a ``HostFacts`` dataclass: hostname, user, pid, platform, working directory and the current time. Every ``JobResult`` carries one. It is also useful on its own, wherever a program labels its output with where it came from.
 
 Commands as text
 ----------------
 
-Programs often receive the command to run as a single string. ``host`` splits that string once, with ``shlex``, before anything is substituted into it, and runs the result without a shell:
+Programs often receive the command to run as a single string. ``hostlib`` splits that string once, with ``shlex``, before anything is substituted into it, and runs the result without a shell:
 
 .. code-block:: python
 
-    from host.proc import argv_fromTemplate
+    from hostlib.proc import argv_fromTemplate
 
     argv = argv_fromTemplate('convert "%{in}" "%{out}"')   # ['convert', '%{in}', '%{out}']
 
 Substitution is the caller's business (any templating library that works per argument will do); because it happens inside already-split arguments, a value containing a space, a quote or a semicolon can never change the shape of the command.
 
-What host is not
-----------------
+What hostlib is not
+-------------------
 
 It is not a shell: no pipes, redirection or globbing in ``argv``. A command that needs them is written explicitly as ``["sh", "-c", "..."]``, which makes the shell's involvement visible rather than implicit. It is not a scheduler, a queue or a retry loop; it runs one program and tells you what happened. It is not a replacement for ``subprocess``, which it uses underneath; it is the layer every program otherwise writes for itself on top of it.
 
 The command
 -----------
 
-``host run -- <program> [args...]`` runs a program through the library with a console sink and prints the record as JSON; ``host facts`` prints the host's facts. Both exist mainly to try the library from a terminal.
+``hostlib run -- <program> [args...]`` runs a program through the library with a console sink and prints the record as JSON; ``hostlib facts`` prints the host's facts. Both exist mainly to try the library from a terminal.
 
 Install
 -------
 
 .. code-block:: console
 
-    pip install host
+    pip install hostlib
 
 Python 3.11 or later, including free-threaded builds. No dependencies.
 
 Layout
 ------
 
-``host.models``
+``hostlib.models``
     Dataclasses only, one module per domain: the shapes that cross a wire or land in a file.
-``host.proc``
+``hostlib.proc``
     Running things: ``job_run``, ``job_start``, ``JobHandle``, argv handling.
-``host.sink``
+``hostlib.sink``
     Where output goes while a job runs: the protocol and the four sinks.
-``host.facts``
+``hostlib.facts``
     What the host is.
-``host.cli``
-    The ``host`` command.
+``hostlib.cli``
+    The ``hostlib`` command.
 
 ``docs/purpose.adoc``, ``docs/architecture.adoc`` and ``docs/history.adoc`` describe why the library exists, how it is built, and where it came from.
 

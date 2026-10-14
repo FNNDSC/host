@@ -3,7 +3,7 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "host"
+name = "hostlib"
 dynamic = ["version"]
 description = "Run a program, stream its output, and keep the record: what a Python program stands on to run other programs"
 readme = "README.rst"
@@ -22,19 +22,19 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/FNNDSC/host"
+Homepage = "https://github.com/FNNDSC/hostlib"
 
 [project.scripts]
-host = "host.cli.__main__:main"
+hostlib = "hostlib.cli.__main__:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
 
 [tool.setuptools.packages.find]
-include = ["host*"]
+include = ["hostlib*"]
 
 [tool.setuptools.dynamic]
-version = { attr = "host.__version__" }
+version = { attr = "hostlib.__version__" }
 
 [tool.ruff]
 target-version = "py311"

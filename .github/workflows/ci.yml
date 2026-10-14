@@ -1,7 +1,7 @@
 # Lint and test on every push and pull request; build and publish to PyPI on a
 # version tag. Publishing uses PyPI trusted publishing (OIDC): no token is stored.
-# One-time setup on PyPI: project host → Publishing → add GitHub publisher
-# owner FNNDSC, repository host, workflow ci.yml, environment pypi.
+# One-time setup on PyPI: project hostlib → Publishing → add GitHub publisher
+# owner FNNDSC, repository hostlib, workflow ci.yml, environment pypi.
 
 name: ci
 
@@ -47,6 +47,6 @@ jobs:
       - run: python -m build
       - name: Check the tag matches the package version
         run: |
-          expected="v$(python -c 'import re, pathlib; print(re.search(r"__version__: str = \"([^\"]+)\"", pathlib.Path("host/__init__.py").read_text()).group(1))')"
+          expected="v$(python -c 'import re, pathlib; print(re.search(r"__version__: str = \"([^\"]+)\"", pathlib.Path("hostlib/__init__.py").read_text()).group(1))')"
           test "${GITHUB_REF_NAME}" = "${expected}" || { echo "tag ${GITHUB_REF_NAME} != ${expected}"; exit 1; }
       - uses: pypa/gh-action-pypi-publish@release/v1

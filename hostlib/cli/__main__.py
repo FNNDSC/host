@@ -1,11 +1,11 @@
-"""The ``host`` command."""
+"""The ``hostlib`` command."""
 
 from __future__ import annotations
 
 import sys
 from collections.abc import Sequence
 
-from host import __version__
+from hostlib import __version__
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -19,9 +19,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     """
     args: list[str] = list(sys.argv[1:] if argv is None else argv)
     if args and args[0] in ("--version", "-V"):
-        print(f"host {__version__}")
+        print(f"hostlib {__version__}")
         return 0
-    print(f"host {__version__}: run a program, stream its output, keep the record")
+    print(f"hostlib {__version__}: run a program, stream its output, keep the record")
     return 0
 
 
