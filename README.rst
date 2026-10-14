@@ -73,6 +73,26 @@ A sink is anything with six methods: ``began`` and ``ended`` around the run, and
 
 Write your own to feed a web socket, a progress bar or a log aggregator; the record you get back is the same regardless of where the output also went.
 
+A batch, one sink
+-----------------
+
+The caller that runs many jobs is the one that knows there is a batch, so it emits the batch's progress through the same sink the jobs write into. A sink that draws a bar sees ``status_write`` and ``progress_write`` and ignores the streams; a console sink shows the streams; a tee shows both; the batch code is the same whichever is attached.
+
+.. code-block:: python
+
+    from hostlib import JobSpec, ProgressEvent, job_run
+
+    def batch_run(jobs: dict[str, JobSpec], sink) -> list:
+        results = []
+        total = len(jobs)
+        for index, (name, spec) in enumerate(jobs.items(), start=1):
+            sink.status_write(f"running {name}")
+            results.append(job_run(spec, sink=sink))
+            sink.progress_write(ProgressEvent("running", label=name, current=index, total=total))
+        return results
+
+``examples/batch.py`` is the complete version: a ``BarSink`` of thirty lines that redraws one terminal line, a job that draws its own carriage-return progress bar through the console sink, a job that fails, and per-job log files beside the bar. Run it with ``--stream`` to see the lines instead of the bar, or ``--both``.
+
 Background jobs
 ---------------
 
