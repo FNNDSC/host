@@ -60,7 +60,7 @@ Running and streaming
     # Watch a long job as it runs, and keep its record beside its results.
     result = job_run(spec, sink=TeeSink(ConsoleSink(), FileSink("/work/sub01/recon-all")))
 
-A sink is anything with four methods: ``stdout_write``, ``stderr_write``, ``status_write`` and ``progress_write``. The library ships four:
+A sink is anything with six methods: ``began`` and ``ended`` around the run, and ``stdout_write``, ``stderr_write``, ``status_write`` and ``progress_write`` during it. ``SinkBase`` implements all six as no-ops, so a custom sink overrides only what it needs. The library ships four:
 
 ``NullSink``
     The default. Output is captured into the record and nowhere else.
