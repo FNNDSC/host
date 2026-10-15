@@ -4,7 +4,7 @@ Key components:
     - job_run, job_start, JobHandle, terminal_render: running things (hostlib.proc)
     - JobSpec, JobResult, JobStarted, JobLogs, HostFacts, ProgressEvent: the shapes (hostlib.models)
     - JobSink and the shipped sinks: where output goes while a job runs (hostlib.sink)
-    - facts: what the host is (hostlib.facts)
+    - facts, memory_limit: what the host is and the memory a process may use (hostlib.facts)
 
 Typical usage:
     from hostlib import JobSpec, job_run
@@ -17,8 +17,8 @@ Dependencies:
 
 from __future__ import annotations
 
-from hostlib.facts.facts import facts
-from hostlib.models.facts import HostFacts
+from hostlib.facts.facts import facts, memory_limit, memorySize_parse
+from hostlib.models.facts import HostFacts, MemoryLimit
 from hostlib.models.proc import JobLogs, JobResult, JobSpec, JobStarted
 from hostlib.models.sink import ProgressEvent
 from hostlib.proc.argv import argv_fromTemplate, argv_join
@@ -27,7 +27,7 @@ from hostlib.proc.run import job_run
 from hostlib.proc.start import JobHandle, job_start
 from hostlib.sink.protocol import JobSink, SinkBase
 
-__version__: str = "1.2.0"
+__version__: str = "1.3.0"
 
 __all__: list[str] = [
     "HostFacts",
@@ -37,6 +37,7 @@ __all__: list[str] = [
     "JobSink",
     "JobSpec",
     "JobStarted",
+    "MemoryLimit",
     "ProgressEvent",
     "SinkBase",
     "__version__",
@@ -45,5 +46,7 @@ __all__: list[str] = [
     "facts",
     "job_run",
     "job_start",
+    "memorySize_parse",
+    "memory_limit",
     "terminal_render",
 ]

@@ -126,6 +126,8 @@ Facts
 
 ``hostlib.facts()`` returns a ``HostFacts`` dataclass: hostname, user, pid, platform, working directory and the current time. Every ``JobResult`` carries one. It is also useful on its own, wherever a program labels its output with where it came from.
 
+``hostlib.memory_limit()`` returns a ``MemoryLimit``: the memory the process may use now, in bytes, and its source. A control group's limit, a container's memory limit or a Slurm job's ``--mem``, is ``cgroup``; with no tighter limit the figure is the machine's available memory, ``meminfo``. It returns ``None`` where neither can be read, as off Linux. ``hostlib.memorySize_parse("16Gi")`` turns a size as ChRIS, Kubernetes and Slurm write it into bytes. Together they let a program that runs several memory-hungry jobs at once decide how many fit.
+
 Commands as text
 ----------------
 
